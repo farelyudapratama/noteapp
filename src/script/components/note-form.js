@@ -1,17 +1,22 @@
+import NotesApi from "../data/remote/notesApi.js";
+import "./loading-indicator.js";
+import Swal from "sweetalert2";
+import { gsap } from "gsap";
+
 class NoteForm extends HTMLElement {
-    _shadowRoot = null;
-    _style = null;
-    _noteId = null;
+  _shadowRoot = null;
+  _style = null;
+  _noteId = null;
 
-    constructor() {
-        super();
+  constructor() {
+    super();
 
-        this._shadowRoot = this.attachShadow({ mode: 'open' });
-        this._style = document.createElement('style');
-    }
+    this._shadowRoot = this.attachShadow({ mode: "open" });
+    this._style = document.createElement("style");
+  }
 
-    _updateStyle() {
-        this._style.textContent = `
+  _updateStyle() {
+    this._style.textContent = `
             :host {
                 display: none;
             }
@@ -85,114 +90,137 @@ class NoteForm extends HTMLElement {
                 display: none;
             }
         `;
+  }
+
+  connectedCallback() {
+    this.render();
+    this._shadowRoot
+      .querySelector(".popup")
+      .addEventListener("click", this._handleOutsideClick.bind(this));
+    this._shadowRoot
+      .querySelector(".form-container")
+      .addEventListener("click", (event) => {
+        event.stopPropagation();
+      });
+
+    this._shadowRoot
+      .querySelector("#title")
+      .addEventListener("input", () => this._validateInput("title"));
+    this._shadowRoot
+      .querySelector("#body")
+      .addEventListener("input", () => this._validateInput("body"));
+
+    this._shadowRoot
+      .querySelector("form")
+      .addEventListener("submit", this._handleSubmit.bind(this));
+  }
+
+  _handleOutsideClick(event) {
+    if (event.target === this._shadowRoot.querySelector(".popup")) {
+      this.style.display = "none";
+      this._emptyForm();
+    }
+  }
+
+  _emptyForm() {
+    this._shadowRoot.querySelector("#title").value = "";
+    this._shadowRoot.querySelector("#body").value = "";
+  }
+
+  open(note = { id: null, title: "", body: "", createdAt: "" }, id = null) {
+    this._noteId = id;
+    this._shadowRoot.querySelector("#title").value = note.title;
+    this._shadowRoot.querySelector("#body").value = note.body;
+    this.style.display = "block";
+  }
+
+  _validateInput(field) {
+    const input = this._shadowRoot.querySelector(`#${field}`);
+    const error = this._shadowRoot.querySelector(`#${field}Error`);
+    let isValid = true;
+    if (field === "title" && input.value.length < 3) {
+      this.showError(error, "Title must be at least 3 characters long.");
+      input.setCustomValidity("Title must be at least 3 characters long.");
+      isValid = false;
+    } else if (field === "body" && input.value.length < 6) {
+      this.showError(error, "Body must be at least 6 characters long.");
+      input.setCustomValidity("Body must be at least 6 characters long.");
+      isValid = false;
+    } else {
+      this.hideError(error);
+      input.setCustomValidity("");
     }
 
-    connectedCallback() {
-        this.render();
-        this._shadowRoot.querySelector('.popup').addEventListener('click', this._handleOutsideClick.bind(this));
-        this._shadowRoot.querySelector('.form-container').addEventListener('click', (event) => {
-            event.stopPropagation();
+    return isValid;
+  }
+
+  async _handleSubmit(event) {
+    event.preventDefault();
+
+    const loadingIndicator = document.querySelector("loading-indicator");
+
+    const titleValid = this._validateInput("title");
+    const bodyValid = this._validateInput("body");
+
+    if (titleValid && bodyValid) {
+      const title = this._shadowRoot.querySelector("#title").value;
+      const body = this._shadowRoot.querySelector("#body").value;
+      const note = { title, body };
+
+      // console.log('Note to be sent:', note);
+      try {
+        if (loadingIndicator) {
+          loadingIndicator.show();
+        }
+        await this._saveNoteToApi(note);
+        this.style.display = "none";
+        this._emptyForm();
+        if (loadingIndicator) {
+          loadingIndicator.show();
+        }
+      } catch (error) {
+        Swal.fire({
+          icon: "error",
+          title: "Oops...",
+          text: error.message,
         });
-
-        this._shadowRoot.querySelector('#title').addEventListener('input', () => this._validateInput('title'));
-        this._shadowRoot.querySelector('#body').addEventListener('input', () => this._validateInput('body'));
-
-        this._shadowRoot.querySelector('form').addEventListener('submit', this._handleSubmit.bind(this));
+        console.error("Error saving note:", error.message);
+      }
     }
+  }
 
-    _handleOutsideClick(event) {
-        if (event.target === this._shadowRoot.querySelector('.popup')) {
-            this.style.display = 'none';
-            this._emptyForm();
-        }
+  async _saveNoteToApi(note) {
+    if (note.id) {
+      // await NotesApi.updateNote(note);
+      // console.log("update")
+    } else {
+      await NotesApi.createNote(note);
+      console.log("create");
     }
+    document.querySelector("note-list").render();
+    document.dispatchEvent(new CustomEvent("notesChanged"));
+  }
 
-    _emptyForm() {
-        this._shadowRoot.querySelector('#title').value = '';
-        this._shadowRoot.querySelector('#body').value = '';
-    }
+  showError(element, message) {
+    element.textContent = message;
+    element.style.display = "block";
+  }
 
-    open(note = { id: null, title: '', body: '', createdAt: '' }, id = null) {
-        this._noteId = id;
-        this._shadowRoot.querySelector('#title').value = note.title;
-        this._shadowRoot.querySelector('#body').value = note.body;
-        this.style.display = 'block';
-    }
+  hideError(element) {
+    element.textContent = "";
+    element.style.display = "none";
+  }
 
-    _validateInput(field) {
-        const input = this._shadowRoot.querySelector(`#${field}`);
-        const error = this._shadowRoot.querySelector(`#${field}Error`);
-        let isValid = true;
-        if (field === 'title' && input.value.length < 3) {
-            this.showError(error, 'Title must be at least 3 characters long.');
-            input.setCustomValidity('Title must be at least 3 characters long.');
-            isValid = false;
-        } else if (field === 'body' && input.value.length < 6) {
-            this.showError(error, 'Body must be at least 6 characters long.');
-            input.setCustomValidity('Body must be at least 6 characters long.');
-            isValid = false;
-        } else {
-            this.hideError(error);
-            input.setCustomValidity('');
-        }
+  _emptyContent() {
+    this._shadowRoot.innerHTML = "";
+  }
 
-        return isValid
-    }
+  render() {
+    this._emptyContent();
+    this._updateStyle();
 
-    _handleSubmit(event) {
-        event.preventDefault();
-
-        const titleValid = this._validateInput('title');
-        const bodyValid = this._validateInput('body');
-
-        if (titleValid && bodyValid) {
-            const title = this._shadowRoot.querySelector('#title').value;
-            const body = this._shadowRoot.querySelector('#body').value;
-            const createdAt = new Date().toISOString();
-            const note = { id: this._noteId, title, body, createdAt };
-
-            this._saveNoteToLocalStorage(note);
-            this.style.display = 'none';
-            this._emptyForm();
-        }
-    }
-
-    _saveNoteToLocalStorage(note) {
-        const notes = JSON.parse(localStorage.getItem('notes')) || [];
-        if (note.id) {
-            const existingNoteIndex = notes.findIndex(n => n.id === note.id);
-            if (existingNoteIndex !== -1) {
-                notes[existingNoteIndex] = note;
-            }
-        } else {
-            note.id = `${Date.now()}`;
-            notes.push(note);
-        }
-        localStorage.setItem('notes', JSON.stringify(notes));
-        document.querySelector('note-list').render();
-        document.dispatchEvent(new CustomEvent('notesChanged'));
-    }
-
-    showError(element, message) {
-        element.textContent = message;
-        element.style.display = 'block';
-    }
-
-    hideError(element) {
-        element.textContent = '';
-        element.style.display = 'none';
-    }
-
-    _emptyContent() {
-        this._shadowRoot.innerHTML = '';
-    }
-
-    render() {
-        this._emptyContent();
-        this._updateStyle();
-
-        this._shadowRoot.appendChild(this._style);
-        this._shadowRoot.innerHTML += `
+    this._shadowRoot.appendChild(this._style);
+    this._shadowRoot.innerHTML += `
             <div class="popup">
                 <div class="form-container">
                     <form>
@@ -213,7 +241,7 @@ class NoteForm extends HTMLElement {
                 </div>
             </div>
         `;
-    }
+  }
 }
 
-customElements.define('note-form', NoteForm);
+customElements.define("note-form", NoteForm);

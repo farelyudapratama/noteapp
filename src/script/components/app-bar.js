@@ -1,16 +1,16 @@
 class AppBar extends HTMLElement {
-    _shadowRoot = null;
-    _style = null;
+  _shadowRoot = null;
+  _style = null;
 
-    constructor() {
-        super();
+  constructor() {
+    super();
 
-        this._shadowRoot = this.attachShadow({ mode: 'open' });
-        this._style = document.createElement('style');
-    }
+    this._shadowRoot = this.attachShadow({ mode: "open" });
+    this._style = document.createElement("style");
+  }
 
-    _updateStyle() {
-        this._style.textContent = `
+  _updateStyle() {
+    this._style.textContent = `
         :host {
           display: block;
           width: 100%;
@@ -72,7 +72,7 @@ class AppBar extends HTMLElement {
             color: #333;
         }
 
-        .search-form button, .add-note-button {
+        .search-form button, .add-note-button, .archive-button {
             border: 0;
             padding: 8px 16px;
             background-color: cornflowerblue;
@@ -84,11 +84,11 @@ class AppBar extends HTMLElement {
             border-radius: 25px;
         }
 
-        .search-form button:hover, .add-note-button:hover {
+        .search-form button:hover {
             background-color: #4485ff;
         }
 
-        .search-form button:active, .add-note-button:active {
+        .search-form button:active {
             background-color: #6c9aee;
         }
         .add-note-button {
@@ -98,6 +98,14 @@ class AppBar extends HTMLElement {
             background-color: #d44b0b;
         }
 
+        .archive-button {
+            background-color: #16941c;
+            position: fixed;
+            bottom: 60px;
+            left: 10px;
+            z-index: 100;
+        }
+
         @media screen and (max-width: 768px) {
             .app-bar {
                 flex-direction: column;
@@ -105,7 +113,7 @@ class AppBar extends HTMLElement {
             }
             .add-note-button {
                 position: fixed;
-                bottom: 10px;
+                bottom: 60px;
                 right: 10px;
                 z-index: 100;
                 display: block;
@@ -119,48 +127,74 @@ class AppBar extends HTMLElement {
         }
 
         `;
+  }
+
+  _emptyContent() {
+    this._shadowRoot.innerHTML = "";
+  }
+
+  connectedCallback() {
+    this.render();
+    this._shadowRoot
+      .querySelector(".add-note-button")
+      .addEventListener("click", this._handleAddNoteClick.bind(this));
+    this._shadowRoot
+      .querySelector("#searchForm")
+      .addEventListener("submit", this._handleSearchSubmit.bind(this));
+    this._shadowRoot
+      .querySelector(".archive-button")
+      .addEventListener("click", this._handleArchiveToggle.bind(this));
+  }
+
+  _handleAddNoteClick() {
+    const noteForm = document.querySelector("note-form");
+    if (noteForm) {
+      noteForm.style.display = "block";
+    } else {
+      const newNoteForm = document.createElement("note-form");
+      document.body.appendChild(newNoteForm);
     }
+  }
 
-    _emptyContent() {
-        this._shadowRoot.innerHTML = '';
+  _handleSearchSubmit(event) {
+    event.preventDefault();
+    // const searchInput = this._shadowRoot.querySelector('#name').value.toLowerCase();
+    // const notes = JSON.parse(localStorage.getItem('notes')) || [];
+    // const filteredNotes = notes.filter(note => {
+    //     return note.title.toLowerCase().includes(searchInput) || note.body.toLowerCase().includes(searchInput);
+    // });
+
+    // const noteList = document.querySelector('note-list');
+    // if (noteList) {
+    //     noteList.updateList(filteredNotes);
+    // }
+  }
+  _handleArchiveToggle() {
+    const showArchived = !this.showArchived;
+    this.showArchived = showArchived;
+    document.dispatchEvent(
+      new CustomEvent("toggleArchive", { detail: { showArchived } }),
+    );
+  }
+
+  get showArchived() {
+    return this._showArchived;
+  }
+
+  set showArchived(value) {
+    this._showArchived = value;
+    const archiveButton = this._shadowRoot.querySelector(".archive-button");
+    if (archiveButton) {
+      archiveButton.textContent = value ? "Hide Archive" : "Show Archive";
     }
+  }
 
-    connectedCallback() {
-        this.render();
-        this._shadowRoot.querySelector('.add-note-button').addEventListener('click', this._handleAddNoteClick.bind(this));
-        this._shadowRoot.querySelector('#searchForm').addEventListener('submit', this._handleSearchSubmit.bind(this));
-    }
+  render() {
+    this._emptyContent();
+    this._updateStyle();
 
-    _handleAddNoteClick() {
-        const noteForm = document.querySelector('note-form');
-        if (noteForm) {
-            noteForm.style.display = 'block';
-        } else {
-            const newNoteForm = document.createElement('note-form');
-            document.body.appendChild(newNoteForm);
-        }
-    }
-
-    _handleSearchSubmit(event) {
-        event.preventDefault();
-        const searchInput = this._shadowRoot.querySelector('#name').value.toLowerCase();
-        const notes = JSON.parse(localStorage.getItem('notes')) || [];
-        const filteredNotes = notes.filter(note => {
-            return note.title.toLowerCase().includes(searchInput) || note.body.toLowerCase().includes(searchInput);
-        });
-
-        const noteList = document.querySelector('note-list');
-        if (noteList) {
-            noteList.updateList(filteredNotes);
-        }
-    }
-
-    render() {
-        this._emptyContent();
-        this._updateStyle();
-
-        this._shadowRoot.appendChild(this._style);
-        this._shadowRoot.innerHTML += `      
+    this._shadowRoot.appendChild(this._style);
+    this._shadowRoot.innerHTML += `      
         <div class="app-bar">
             <h1 class="brand-name">Notes App</h1>
             <form id="searchForm" class="search-form">
@@ -168,10 +202,11 @@ class AppBar extends HTMLElement {
                 <label for="name">Search Notes</label>
                 <button type="submit">Search</button>
             </form>
+            <button class="archive-button">Show Archive</button>
             <button class="add-note-button">+ Add Note</button>
         </div>
       `;
-    }
+  }
 }
 
-customElements.define('app-bar', AppBar);
+customElements.define("app-bar", AppBar);
